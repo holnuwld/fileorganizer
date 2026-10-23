@@ -70,6 +70,17 @@
 
 ---
 
+## 📦 다운로드 (Download)
+
+설치 없이 바로 사용할 수 있는 무설치 포터블 버전(`fast-media-organizer-windows-x64.zip`)을 제공합니다:
+
+👉 **[최신 릴리스 다운로드 (v1.0.0)](https://github.com/holnuwld/fileorganizer/releases/latest)**
+
+1. 위 링크에서 `fast-media-organizer-windows-x64.zip`을 다운로드합니다.
+2. 압축을 풀고 `fast-media-organizer.exe`를 실행하면 바로 사용할 수 있습니다.
+
+---
+
 ## 🛠️ 기술 스택 (Tech Stack)
 
 - **Runtime & Desktop Framework**: Electron 44, Node.js 24
