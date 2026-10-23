@@ -50,7 +50,8 @@ interface ExplorerState {
   refreshCurrentTab: () => Promise<void>
   setTabViewMode: (mode: 'details' | 'grid') => void
   setThumbnailSize: (size: number) => void
-  setSort: (column: SortColumn) => void
+  setSort: (column: SortColumn, direction?: SortDirection) => void
+  toggleSortDirection: () => void
 
   // Methods - Files
   loadDirectory: (dirPath: string) => Promise<void>
@@ -109,7 +110,16 @@ const initialSlots: Record<number, TargetFolderSlot | null> = {
   6: null,
   7: null,
   8: null,
-  9: null
+  9: null,
+  10: null,
+  11: null,
+  12: null,
+  13: null,
+  14: null,
+  15: null,
+  16: null,
+  17: null,
+  18: null
 }
 
 // Closed tabs stack for Ctrl+Shift+T
@@ -300,9 +310,10 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     }))
   },
 
-  setSort: (column: SortColumn) => {
+  setSort: (column: SortColumn, direction?: SortDirection) => {
     const { sortColumn, sortDirection, files } = get()
-    const newDirection = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc'
+    const newDirection =
+      direction ?? (sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc')
 
     const sortedFiles = [...files].sort((a, b) => {
       // Folders always first
@@ -330,6 +341,11 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
       selectedFileIndex: newSelectedIndex >= 0 ? newSelectedIndex : 0,
       selectedFile: newSelectedIndex >= 0 ? sortedFiles[newSelectedIndex] : sortedFiles[0] || null
     })
+  },
+
+  toggleSortDirection: () => {
+    const { sortColumn, sortDirection } = get()
+    get().setSort(sortColumn, sortDirection === 'asc' ? 'desc' : 'asc')
   },
 
   // --- Directory & File Listing ---
@@ -658,16 +674,16 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
 
   cancelConflict: () => set({ pendingConflict: null }),
 
-  // Assign selected folder to next empty slot (1~9)
+  // Assign selected folder to next empty slot (1~18)
   assignSelectedFolderToNextEmptySlot: async () => {
     const { selectedFile, slots, setTargetSlot, setHighlightedSlot } = get()
     if (!selectedFile || !selectedFile.isDirectory) {
       return false
     }
 
-    // Find first empty slot among 1..9
+    // Find first empty slot among 1..18
     let emptySlotId: number | null = null
-    for (let id = 1; id <= 9; id++) {
+    for (let id = 1; id <= 18; id++) {
       if (!slots[id]) {
         emptySlotId = id
         break
@@ -675,7 +691,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     }
 
     if (!emptySlotId) {
-      alert('타겟 폴더 슬롯(1~9)이 모두 채워져 있습니다. 슬롯을 비우거나 기존 슬롯을 교체해주세요.')
+      alert('타겟 폴더 슬롯(1~18)이 모두 채워져 있습니다. 슬롯을 비우거나 기존 슬롯을 교체해주세요.')
       return false
     }
 

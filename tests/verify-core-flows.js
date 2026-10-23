@@ -234,18 +234,24 @@ async function runAllTests() {
     assert.strictEqual(raw.targetSlots[0].name, 'Favs')
   })
 
-  await test('2.5 Save target slots using dictionary/record format (keys 1-9)', () => {
+  await test('2.5 Save target slots using dictionary/record format (keys 1-18)', () => {
     const dictSlots = {
       1: { id: 1, path: 'D:\\Folder1', name: 'Folder 1' },
       3: { id: 3, path: 'D:\\Folder3', name: 'Folder 3' },
+      12: { id: 12, path: 'D:\\Folder12', name: 'Folder 12' },
+      18: { id: 18, path: 'D:\\Folder18', name: 'Folder 18' },
       5: null
     }
     const saved = storeService.saveTargetSlots(dictSlots)
-    assert.strictEqual(saved.length, 2)
+    assert.strictEqual(saved.length, 4)
     const slot1 = saved.find((s) => s.id === 1)
     const slot3 = saved.find((s) => s.id === 3)
+    const slot12 = saved.find((s) => s.id === 12)
+    const slot18 = saved.find((s) => s.id === 18)
     assert.ok(slot1 && slot1.path === 'D:\\Folder1')
     assert.ok(slot3 && slot3.path === 'D:\\Folder3')
+    assert.ok(slot12 && slot12.path === 'D:\\Folder12')
+    assert.ok(slot18 && slot18.path === 'D:\\Folder18')
   })
 
   await test('2.6 Cold start persistence check (new ConfigStore instance from disk)', () => {
@@ -257,7 +263,9 @@ async function runAllTests() {
     assert.strictEqual(loadedSettings.autoPlayVideo, false)
     assert.strictEqual(loadedSettings.videoVolume, 0.65)
     assert.strictEqual(loadedSettings.hotkeys.playPause, 'KeyK')
-    assert.strictEqual(loadedSlots.length, 2)
+    assert.strictEqual(loadedSettings.hotkeys.moveSlot10, 'Shift+1')
+    assert.strictEqual(loadedSettings.hotkeys.copySlot18, 'Ctrl+Shift+9')
+    assert.strictEqual(loadedSlots.length, 4)
   })
 
   await test('2.7 Undo history push, pop and max-50 cap enforcement', () => {

@@ -19,12 +19,27 @@ export function eventToKeyString(e: KeyboardEvent): string {
   if (e.metaKey) parts.push('Meta')
 
   let key = e.key
+  const shiftDigitMap: Record<string, string> = {
+    '!': '1',
+    '@': '2',
+    '#': '3',
+    '$': '4',
+    '%': '5',
+    '^': '6',
+    '&': '7',
+    '*': '8',
+    '(': '9',
+    ')': '0'
+  }
+
   if (key === ' ') {
     key = 'Space'
   } else if (/^Digit([0-9])$/.test(e.code)) {
     key = e.code.replace('Digit', '')
   } else if (/^Numpad([0-9])$/.test(e.code)) {
     key = e.code.replace('Numpad', '')
+  } else if (shiftDigitMap[key]) {
+    key = shiftDigitMap[key]
   } else if (key.length === 1) {
     key = key.toUpperCase()
   }
@@ -190,11 +205,14 @@ export function useKeyboardRouter() {
         return
       }
 
-      // 8. Target Folders Move / Copy Custom Hotkeys (1~9 slots)
-      for (let slotId = 1; slotId <= 9; slotId++) {
-        const moveBinding = hotkeys[`moveSlot${slotId}` as keyof typeof hotkeys] || String(slotId)
-        const copyBinding =
-          hotkeys[`copySlot${slotId}` as keyof typeof hotkeys] || `Ctrl+${slotId}`
+      // 8. Target Folders Move / Copy Custom Hotkeys (1~18 slots)
+      // Row 1: Slots 1~9 (Move: 1~9, Copy: Ctrl+1~9)
+      // Row 2: Slots 10~18 (Move: Shift+1~9, Copy: Ctrl+Shift+1~9)
+      for (let slotId = 1; slotId <= 18; slotId++) {
+        const defaultMove = slotId <= 9 ? String(slotId) : `Shift+${slotId - 9}`
+        const defaultCopy = slotId <= 9 ? `Ctrl+${slotId}` : `Ctrl+Shift+${slotId - 9}`
+        const moveBinding = hotkeys[`moveSlot${slotId}` as keyof typeof hotkeys] || defaultMove
+        const copyBinding = hotkeys[`copySlot${slotId}` as keyof typeof hotkeys] || defaultCopy
 
         // Check Copy first
         if (matchesBinding(e, copyBinding)) {

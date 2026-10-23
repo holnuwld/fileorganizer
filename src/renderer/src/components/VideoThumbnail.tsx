@@ -36,16 +36,39 @@ export const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ filePath, mediaS
     video.playsInline = true
 
     let isCancelled = false
+    let hasSeeked = false
+
+    // Safety timeout (3.5s) to prevent hanging if video codec is unsupported or network stalls
+    const timeoutId = setTimeout(() => {
+      if (!isCancelled && !hasSeeked) {
+        setLoadFailed(true)
+        cleanupVideo()
+      }
+    }, 3500)
+
+    const triggerSeek = () => {
+      if (isCancelled || hasSeeked) return
+      try {
+        const dur = video.duration
+        const seekTime = dur && !isNaN(dur) && dur > 0 ? Math.min(1.0, dur > 2 ? 1.0 : dur * 0.2) : 0.1
+        video.currentTime = seekTime
+      } catch {
+        video.currentTime = 0.1
+      }
+    }
+
+    const handleLoadedMetadata = () => {
+      triggerSeek()
+    }
 
     const handleLoadedData = () => {
-      if (isCancelled) return
-      // Seek slightly forward to avoid completely black 0.0s frames (e.g. 0.5s or 0.1s)
-      const seekTime = Math.min(1.0, video.duration > 2 ? 1.0 : video.duration * 0.2)
-      video.currentTime = seekTime || 0.1
+      triggerSeek()
     }
 
     const handleSeeked = () => {
       if (isCancelled) return
+      hasSeeked = true
+      clearTimeout(timeoutId)
       try {
         const canvas = document.createElement('canvas')
         const width = video.videoWidth || 320
@@ -73,12 +96,15 @@ export const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ filePath, mediaS
 
     const handleError = () => {
       if (isCancelled) return
+      clearTimeout(timeoutId)
       setLoadFailed(true)
       cleanupVideo()
     }
 
     const cleanupVideo = () => {
+      clearTimeout(timeoutId)
       if (video) {
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata)
         video.removeEventListener('loadeddata', handleLoadedData)
         video.removeEventListener('seeked', handleSeeked)
         video.removeEventListener('error', handleError)
@@ -87,12 +113,14 @@ export const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ filePath, mediaS
       }
     }
 
+    video.addEventListener('loadedmetadata', handleLoadedMetadata)
     video.addEventListener('loadeddata', handleLoadedData)
     video.addEventListener('seeked', handleSeeked)
     video.addEventListener('error', handleError)
 
     return () => {
       isCancelled = true
+      clearTimeout(timeoutId)
       cleanupVideo()
     }
   }, [filePath, mediaSrc])

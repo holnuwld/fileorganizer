@@ -412,10 +412,10 @@ export const SettingsModal: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Target Folder Move Hotkeys */}
+                  {/* Target Folder Move Hotkeys - Row 1 & Row 2 */}
                   <div className="pt-3">
                     <p className="font-semibold text-blue-400 mb-2 px-1 text-[11px] uppercase tracking-wider">
-                      타겟 폴더 슬롯 (1~9) 파일 이동 핫키
+                      타겟 폴더 슬롯 (1행: 1~9) 파일 이동 핫키
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {Array.from({ length: 9 }, (_, i) => i + 1).map((slotId) => {
@@ -446,10 +446,44 @@ export const SettingsModal: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Target Folder Copy Hotkeys */}
+                  <div className="pt-3">
+                    <p className="font-semibold text-purple-400 mb-2 px-1 text-[11px] uppercase tracking-wider">
+                      타겟 폴더 슬롯 (2행: 10~18, Shift+숫자) 파일 이동 핫키
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Array.from({ length: 9 }, (_, i) => i + 10).map((slotId) => {
+                        const keyId = `moveSlot${slotId}`
+                        const defaultBinding = `Shift+${slotId - 9}`
+                        const currentVal =
+                          settings.hotkeys[keyId as keyof typeof settings.hotkeys] || defaultBinding
+                        const isRecording = recordingKey === keyId
+                        return (
+                          <div
+                            key={keyId}
+                            className="flex items-center justify-between px-2.5 py-1.5 rounded bg-zinc-900/60 hover:bg-zinc-800/50 transition"
+                          >
+                            <span className="text-zinc-300">슬롯 {slotId} (⇧{slotId - 9}) 이동</span>
+                            <button
+                              type="button"
+                              onClick={() => setRecordingKey(keyId)}
+                              className={`px-2.5 py-1 rounded font-mono font-medium text-xs transition border ${
+                                isRecording
+                                  ? 'bg-amber-500 text-black border-amber-400'
+                                  : 'bg-zinc-800 text-purple-400 border-zinc-700 hover:border-purple-500'
+                              }`}
+                            >
+                              {isRecording ? '입력 중...' : currentVal}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Target Folder Copy Hotkeys - Row 1 & Row 2 */}
                   <div className="pt-3">
                     <p className="font-semibold text-emerald-400 mb-2 px-1 text-[11px] uppercase tracking-wider">
-                      타겟 폴더 슬롯 (1~9) 파일 복사 핫키
+                      타겟 폴더 슬롯 (1행: 1~9) 파일 복사 핫키
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {Array.from({ length: 9 }, (_, i) => i + 1).map((slotId) => {
@@ -471,6 +505,40 @@ export const SettingsModal: React.FC = () => {
                                 isRecording
                                   ? 'bg-amber-500 text-black border-amber-400'
                                   : 'bg-zinc-800 text-emerald-400 border-zinc-700 hover:border-emerald-500'
+                              }`}
+                            >
+                              {isRecording ? '입력 중...' : currentVal}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="pt-3">
+                    <p className="font-semibold text-teal-400 mb-2 px-1 text-[11px] uppercase tracking-wider">
+                      타겟 폴더 슬롯 (2행: 10~18, Ctrl+Shift+숫자) 파일 복사 핫키
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Array.from({ length: 9 }, (_, i) => i + 10).map((slotId) => {
+                        const keyId = `copySlot${slotId}`
+                        const defaultBinding = `Ctrl+Shift+${slotId - 9}`
+                        const currentVal =
+                          settings.hotkeys[keyId as keyof typeof settings.hotkeys] || defaultBinding
+                        const isRecording = recordingKey === keyId
+                        return (
+                          <div
+                            key={keyId}
+                            className="flex items-center justify-between px-2.5 py-1.5 rounded bg-zinc-900/60 hover:bg-zinc-800/50 transition"
+                          >
+                            <span className="text-zinc-300">슬롯 {slotId} (⇧{slotId - 9}) 복사</span>
+                            <button
+                              type="button"
+                              onClick={() => setRecordingKey(keyId)}
+                              className={`px-2.5 py-1 rounded font-mono font-medium text-xs transition border ${
+                                isRecording
+                                  ? 'bg-amber-500 text-black border-amber-400'
+                                  : 'bg-zinc-800 text-teal-400 border-zinc-700 hover:border-teal-500'
                               }`}
                             >
                               {isRecording ? '입력 중...' : currentVal}

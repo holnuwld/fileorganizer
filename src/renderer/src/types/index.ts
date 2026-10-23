@@ -14,7 +14,7 @@ export type DriveInfo = {
 }
 
 export type TargetFolderSlot = {
-  id: number // 1 ~ 9
+  id: number // 1 ~ 18
   path: string
   name: string
 }
@@ -55,6 +55,15 @@ export type Settings = {
     moveSlot7: string
     moveSlot8: string
     moveSlot9: string
+    moveSlot10: string
+    moveSlot11: string
+    moveSlot12: string
+    moveSlot13: string
+    moveSlot14: string
+    moveSlot15: string
+    moveSlot16: string
+    moveSlot17: string
+    moveSlot18: string
     copySlot1: string
     copySlot2: string
     copySlot3: string
@@ -64,6 +73,15 @@ export type Settings = {
     copySlot7: string
     copySlot8: string
     copySlot9: string
+    copySlot10: string
+    copySlot11: string
+    copySlot12: string
+    copySlot13: string
+    copySlot14: string
+    copySlot15: string
+    copySlot16: string
+    copySlot17: string
+    copySlot18: string
     playPause: string
     muteToggle: string
     undo: string

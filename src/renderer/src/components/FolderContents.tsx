@@ -13,7 +13,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  RefreshCw
+  RefreshCw,
+  Check
 } from 'lucide-react'
 import { useExplorerStore, SortColumn } from '../store/useExplorerStore'
 import { FileEntry } from '../types'
@@ -58,6 +59,7 @@ export const FolderContents: React.FC = () => {
     sortColumn,
     sortDirection,
     setSort,
+    toggleSortDirection,
     renamingFile,
     cancelRename,
     commitRename,
@@ -75,6 +77,39 @@ export const FolderContents: React.FC = () => {
 
   const [renameInputValue, setRenameInputValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
+
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false)
+  const sortMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close sort menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setIsSortMenuOpen(false)
+      }
+    }
+    if (isSortMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isSortMenuOpen])
+
+  const getSortLabel = (col: SortColumn) => {
+    switch (col) {
+      case 'name':
+        return '이름순'
+      case 'mtime':
+        return '수정일순'
+      case 'size':
+        return '크기순'
+      case 'type':
+        return '유형순'
+      default:
+        return '이름순'
+    }
+  }
 
   // Sync path input value with activeTab.path
   useEffect(() => {
@@ -288,7 +323,109 @@ export const FolderContents: React.FC = () => {
             </div>
           )}
 
-          <div className="text-[11px] text-zinc-500 font-mono">{files.length} 항목</div>
+          {/* Sorting Controls */}
+          <div className="flex items-center gap-1 shrink-0">
+            <div className="relative" ref={sortMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 hover:border-zinc-700 transition text-[11px]"
+                title="정렬 기준 선택"
+              >
+                <ArrowUpDown className="w-3 h-3 text-blue-400" />
+                <span>{getSortLabel(sortColumn)}</span>
+                {sortDirection === 'asc' ? (
+                  <ArrowUp className="w-2.5 h-2.5 text-blue-400" />
+                ) : (
+                  <ArrowDown className="w-2.5 h-2.5 text-blue-400" />
+                )}
+              </button>
+
+              {/* Dropdown Menu */}
+              {isSortMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                    정렬 기준
+                  </div>
+                  {(
+                    [
+                      { key: 'name', label: '이름순 (Name)' },
+                      { key: 'mtime', label: '수정일순 (Date)' },
+                      { key: 'size', label: '크기순 (Size)' },
+                      { key: 'type', label: '유형순 (Type)' }
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setSort(opt.key, sortDirection)
+                        setIsSortMenuOpen(false)
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-zinc-800/80 text-left text-zinc-200 transition"
+                    >
+                      <span className={sortColumn === opt.key ? 'text-blue-400 font-medium' : ''}>
+                        {opt.label}
+                      </span>
+                      {sortColumn === opt.key && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                    </button>
+                  ))}
+
+                  <div className="my-1 border-t border-zinc-800/80" />
+
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                    정렬 방향
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSort(sortColumn, 'asc')
+                      setIsSortMenuOpen(false)
+                    }}
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-zinc-800/80 text-left text-zinc-200 transition"
+                  >
+                    <span className={sortDirection === 'asc' ? 'text-blue-400 font-medium' : ''}>
+                      오름차순 (Ascending)
+                    </span>
+                    {sortDirection === 'asc' && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSort(sortColumn, 'desc')
+                      setIsSortMenuOpen(false)
+                    }}
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-zinc-800/80 text-left text-zinc-200 transition"
+                  >
+                    <span className={sortDirection === 'desc' ? 'text-blue-400 font-medium' : ''}>
+                      내림차순 (Descending)
+                    </span>
+                    {sortDirection === 'desc' && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Toggle Asc/Desc Button */}
+            <button
+              type="button"
+              onClick={() => toggleSortDirection()}
+              title={
+                sortDirection === 'asc'
+                  ? '내림차순으로 전환 (현재: 오름차순)'
+                  : '오름차순으로 전환 (현재: 내림차순)'
+              }
+              className="p-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 transition"
+            >
+              {sortDirection === 'asc' ? (
+                <ArrowUp className="w-3.5 h-3.5 text-blue-400" />
+              ) : (
+                <ArrowDown className="w-3.5 h-3.5 text-blue-400" />
+              )}
+            </button>
+          </div>
+
+          <div className="text-[11px] text-zinc-500 font-mono shrink-0">{files.length} 항목</div>
         </div>
       </div>
 
