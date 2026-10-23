@@ -52,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
     playPause: 'Space',
     muteToggle: 'M',
     undo: 'Ctrl+Z',
+    redo: 'Ctrl+Y',
     rename: 'F2',
     refresh: 'F5',
     assignNextSlot: 'Ctrl+ArrowUp'
@@ -62,6 +63,7 @@ export interface AppConfig {
   settings: Settings
   targetSlots: TargetFolderSlot[]
   undoHistory: UndoAction[]
+  redoHistory: UndoAction[]
   presets: PresetConfig[]
 }
 
@@ -69,6 +71,7 @@ const DEFAULT_CONFIG: AppConfig = {
   settings: DEFAULT_SETTINGS,
   targetSlots: [],
   undoHistory: [],
+  redoHistory: [],
   presets: []
 }
 
@@ -122,6 +125,7 @@ export class ConfigStore {
             ? parsed.targetSlots
             : this.normalizeSlots(parsed.targetSlots),
           undoHistory: Array.isArray(parsed.undoHistory) ? parsed.undoHistory.slice(0, 50) : [],
+          redoHistory: Array.isArray(parsed.redoHistory) ? parsed.redoHistory.slice(0, 50) : [],
           presets: Array.isArray(parsed.presets) ? parsed.presets : []
         }
         return this.cache
@@ -227,7 +231,8 @@ export class ConfigStore {
     const updated = [action, ...current.undoHistory.filter((a) => a.id !== action.id)].slice(0, 50)
     this.saveConfig({
       ...current,
-      undoHistory: updated
+      undoHistory: updated,
+      redoHistory: []
     })
   }
 
@@ -248,6 +253,40 @@ export class ConfigStore {
       ...current,
       undoHistory: current.undoHistory.filter((a) => a.id !== id)
     })
+  }
+
+  public getRedoHistory(): UndoAction[] {
+    return this.loadConfig().redoHistory || []
+  }
+
+  public pushRedoAction(action: UndoAction): void {
+    const current = this.loadConfig()
+    const updated = [action, ...(current.redoHistory || []).filter((a) => a.id !== action.id)].slice(0, 50)
+    this.saveConfig({
+      ...current,
+      redoHistory: updated
+    })
+  }
+
+  public popRedoAction(): UndoAction | undefined {
+    const current = this.loadConfig()
+    if (!current.redoHistory || current.redoHistory.length === 0) return undefined
+    const [first, ...rest] = current.redoHistory
+    this.saveConfig({
+      ...current,
+      redoHistory: rest
+    })
+    return first
+  }
+
+  public clearRedoHistory(): void {
+    const current = this.loadConfig()
+    if (current.redoHistory && current.redoHistory.length > 0) {
+      this.saveConfig({
+        ...current,
+        redoHistory: []
+      })
+    }
   }
 
   private normalizeSlots(

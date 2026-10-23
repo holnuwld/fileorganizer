@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell } from 'electron'
+import { ipcMain, dialog, shell, nativeImage } from 'electron'
 import { fsService } from './fs-service'
 import { storeService } from './store'
 import {
@@ -109,6 +109,42 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('fs:getUndoHistory', async (): Promise<UndoAction[]> => {
     return storeService.getUndoHistory()
   })
+
+  ipcMain.handle(
+    'fs:redoAction',
+    async (): Promise<FileOperationResult & { redoneAction?: UndoAction }> => {
+      return await fsService.redoLatestAction()
+    }
+  )
+
+  ipcMain.handle('fs:getRedoHistory', async (): Promise<UndoAction[]> => {
+    return storeService.getRedoHistory()
+  })
+
+  // Native Windows Shell Thumbnail generation
+  ipcMain.handle(
+    'fs:getFileThumbnail',
+    async (
+      _event,
+      filePath: string,
+      maxSize: { width: number; height: number } = { width: 320, height: 240 }
+    ): Promise<string | null> => {
+      try {
+        if (nativeImage && typeof nativeImage.createThumbnailFromPath === 'function') {
+          const thumb = await nativeImage.createThumbnailFromPath(filePath, {
+            width: maxSize.width,
+            height: maxSize.height
+          })
+          if (thumb && !thumb.isEmpty()) {
+            return thumb.toDataURL()
+          }
+        }
+      } catch (err) {
+        // Fallback silently if format has no OS shell thumbnail
+      }
+      return null
+    }
+  )
 
   // --- Configuration & Store Operations ---
   ipcMain.handle('store:getSettings', async (): Promise<Settings> => {

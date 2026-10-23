@@ -85,6 +85,7 @@ export type Settings = {
     playPause: string
     muteToggle: string
     undo: string
+    redo: string
     rename: string
     refresh: string
     assignNextSlot: string

@@ -50,6 +50,14 @@ export type CustomElectronAPI = {
   ) => Promise<FileOperationResult & { undoneAction?: UndoAction }>
   undoAction: () => Promise<FileOperationResult & { undoneAction?: UndoAction }>
   getUndoHistory: () => Promise<UndoAction[]>
+  redoAction: () => Promise<FileOperationResult & { redoneAction?: UndoAction }>
+  getRedoHistory: () => Promise<UndoAction[]>
+
+  // Native Thumbnail
+  getFileThumbnail: (
+    filePath: string,
+    maxSize?: { width: number; height: number }
+  ) => Promise<string | null>
 
   // Presets
   getPresets: () => Promise<PresetConfig[]>
@@ -120,6 +128,15 @@ export const customApi: CustomElectronAPI = {
   undoAction: (): Promise<FileOperationResult & { undoneAction?: UndoAction }> =>
     ipcRenderer.invoke('fs:undoAction'),
   getUndoHistory: (): Promise<UndoAction[]> => ipcRenderer.invoke('fs:getUndoHistory'),
+  redoAction: (): Promise<FileOperationResult & { redoneAction?: UndoAction }> =>
+    ipcRenderer.invoke('fs:redoAction'),
+  getRedoHistory: (): Promise<UndoAction[]> => ipcRenderer.invoke('fs:getRedoHistory'),
+
+  // Native Thumbnail
+  getFileThumbnail: (
+    filePath: string,
+    maxSize: { width: number; height: number } = { width: 320, height: 240 }
+  ): Promise<string | null> => ipcRenderer.invoke('fs:getFileThumbnail', filePath, maxSize),
 
   // Presets
   getPresets: (): Promise<PresetConfig[]> => ipcRenderer.invoke('store:getPresets'),

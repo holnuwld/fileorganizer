@@ -73,6 +73,12 @@ require.cache[require.resolve('electron')] = {
     dialog: {
       showOpenDialog: async () => ({ canceled: false, filePaths: [TEST_TARGET_DIR] })
     },
+    nativeImage: {
+      createThumbnailFromPath: async () => ({
+        isEmpty: () => false,
+        toDataURL: () => 'data:image/jpeg;base64,mockthumb'
+      })
+    },
     BrowserWindow: class {},
     shell: {
       openExternal: () => {},
@@ -487,6 +493,30 @@ async function runAllTests() {
     }
   })
 
+  await test('3.13 Redo operation restores undone move and copy operations', async () => {
+    const redoFileName = 'file-for-redo.mp4'
+    const sourceFile = path.join(TEST_SOURCE_DIR, redoFileName)
+    createDummyFile(sourceFile, 'redo-test-data')
+
+    // 1. Move file
+    const moveRes = await fsService.moveFile(sourceFile, TEST_TARGET_DIR, 'ask', 2)
+    assert.strictEqual(moveRes.success, true)
+    assert.strictEqual(fs.existsSync(sourceFile), false)
+    assert.strictEqual(fs.existsSync(moveRes.destinationPath), true)
+
+    // 2. Undo move
+    const undoRes = await fsService.undoLatestAction()
+    assert.strictEqual(undoRes.success, true)
+    assert.strictEqual(fs.existsSync(sourceFile), true)
+    assert.strictEqual(fs.existsSync(moveRes.destinationPath), false)
+
+    // 3. Redo move
+    const redoRes = await fsService.redoLatestAction()
+    assert.strictEqual(redoRes.success, true)
+    assert.strictEqual(fs.existsSync(sourceFile), false, 'Source must be moved again on redo')
+    assert.strictEqual(fs.existsSync(moveRes.destinationPath), true, 'Dest must exist again on redo')
+  })
+
   // ---------------------------------------------------------
   // SUITE 4: IPC Handler Contracts Integration
   // ---------------------------------------------------------
@@ -524,6 +554,22 @@ async function runAllTests() {
   await test('4.4 IPC dialog:selectFolder returns configured folder path', async () => {
     const selected = await ipcRendererMock.invoke('dialog:selectFolder')
     assert.strictEqual(selected, TEST_TARGET_DIR)
+  })
+
+  await test('4.5 IPC fs:redoAction and fs:getFileThumbnail integration', async () => {
+    const redoFile = path.join(TEST_SOURCE_DIR, 'ipc-redo.png')
+    createDummyFile(redoFile, 'ipc-redo-content')
+
+    await ipcRendererMock.invoke('fs:moveFile', redoFile, TEST_TARGET_DIR, 'ask', 5)
+    await ipcRendererMock.invoke('fs:undoAction')
+    assert.strictEqual(fs.existsSync(redoFile), true)
+
+    const redoResult = await ipcRendererMock.invoke('fs:redoAction')
+    assert.strictEqual(redoResult.success, true)
+    assert.strictEqual(fs.existsSync(redoFile), false)
+
+    const thumb = await ipcRendererMock.invoke('fs:getFileThumbnail', redoFile)
+    assert.ok(thumb && thumb.startsWith('data:image/jpeg;base64,'))
   })
 
   // Cleanup test artifacts

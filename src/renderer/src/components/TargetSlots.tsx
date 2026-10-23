@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Folder, Plus, X, ArrowDownRight, Copy } from 'lucide-react'
+import { X, ArrowDownRight, Copy } from 'lucide-react'
 import { useExplorerStore } from '../store/useExplorerStore'
 
 export const TargetSlots: React.FC = () => {
@@ -106,7 +106,7 @@ export const TargetSlots: React.FC = () => {
         onDrop={(e) => handleDrop(e, slotId)}
         onClick={() => handleSlotClick(slotId)}
         title={slot ? `슬롯 ${slotId}: ${slot.name}\n${slot.path}\n단축키: ${hotkeyGuide}` : `슬롯 ${slotId} (비어있음)\n단축키: ${hotkeyGuide}\n클릭하여 폴더 지정 또는 드래그 앤 드롭`}
-        className={`relative group flex flex-col justify-between px-2 py-1 rounded-md border transition-all duration-150 cursor-pointer h-[46px] select-none ${
+        className={`relative group flex items-center justify-between px-2.5 py-1.5 rounded-lg border transition-all duration-150 cursor-pointer h-[44px] select-none ${
           isHighlighted
             ? highlightType === 'copy'
               ? 'animate-slot-copy border-emerald-500 bg-emerald-950/50 text-emerald-200'
@@ -118,62 +118,49 @@ export const TargetSlots: React.FC = () => {
                 : 'border-dashed border-zinc-800/90 hover:border-zinc-700 bg-zinc-950/80 hover:bg-zinc-900/40 text-zinc-600'
         }`}
       >
-        {/* Header: Slot Badge & Remove button */}
-        <div className="flex items-center justify-between w-full">
+        {/* Left: Slot Number Badge, Right: Folder Name */}
+        <div className="flex items-center gap-2 min-w-0 flex-1 mr-1">
           <span
-            className={`px-1 h-3.5 rounded text-[9px] font-bold flex items-center justify-center font-mono ${
+            className={`px-1.5 py-0.5 rounded text-[11px] font-bold flex items-center justify-center font-mono shrink-0 shadow-xs ${
               isHighlighted
                 ? highlightType === 'copy'
                   ? 'bg-emerald-500 text-black'
                   : 'bg-blue-500 text-white'
                 : slot
                   ? isRow2
-                    ? 'bg-purple-900/80 text-purple-200 border border-purple-700/50 group-hover:bg-purple-600 group-hover:text-white transition'
-                    : 'bg-zinc-700 text-zinc-200 group-hover:bg-blue-600 group-hover:text-white transition'
-                  : isRow2
-                    ? 'bg-zinc-900 text-zinc-500 border border-zinc-800'
-                    : 'bg-zinc-900 text-zinc-500 border border-zinc-800'
+                    ? 'bg-purple-900/90 text-purple-200 border border-purple-600/60 group-hover:bg-purple-600 group-hover:text-white transition'
+                    : 'bg-zinc-800 text-blue-400 border border-zinc-700 group-hover:bg-blue-600 group-hover:text-white transition'
+                  : 'bg-zinc-900 text-zinc-600 border border-zinc-800'
             }`}
           >
             {badgeLabel}
           </span>
 
-          <div className="flex items-center gap-1">
-            {slot ? (
-              <>
-                <Folder className={`w-3 h-3 shrink-0 ${isRow2 ? 'text-purple-400' : 'text-blue-400'}`} />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeTargetSlot(slotId)
-                  }}
-                  title="슬롯 비우기"
-                  className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 p-0.5 rounded transition"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </>
-            ) : (
-              <Plus className="w-2.5 h-2.5 text-zinc-600" />
-            )}
-          </div>
+          <span
+            title={slot ? `${slot.name}\n(${slot.path})` : '클릭하여 폴더 지정'}
+            className={`truncate font-semibold tracking-tight ${
+              slot
+                ? 'text-[14px] text-zinc-100 group-hover:text-white'
+                : 'text-[12px] text-zinc-500 font-normal'
+            }`}
+          >
+            {slot ? slot.name : '+ 비어 있음'}
+          </span>
         </div>
 
-        {/* Slot Body: Folder name or Empty indicator */}
-        <div className="flex items-center overflow-hidden">
-          {slot ? (
-            <span
-              title={`${slot.name} (${slot.path})`}
-              className="text-[11px] font-medium truncate leading-tight w-full"
-            >
-              {slot.name}
-            </span>
-          ) : (
-            <span className="text-[10px] text-zinc-600 truncate leading-tight w-full text-center">
-              비어 있음
-            </span>
-          )}
-        </div>
+        {/* Clear Button on hover */}
+        {slot && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              removeTargetSlot(slotId)
+            }}
+            title="슬롯 비우기"
+            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 p-1 rounded transition shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
 
         {/* 1s Pulse Highlight Floating Badge */}
         {isHighlighted && (

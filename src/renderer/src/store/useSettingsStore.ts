@@ -50,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
     playPause: 'Space',
     muteToggle: 'M',
     undo: 'Ctrl+Z',
+    redo: 'Ctrl+Y',
     rename: 'F2',
     refresh: 'F5',
     assignNextSlot: 'Ctrl+ArrowUp'

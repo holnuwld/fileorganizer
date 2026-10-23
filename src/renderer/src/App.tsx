@@ -3,6 +3,7 @@ import {
   Table,
   LayoutGrid,
   RotateCcw,
+  RotateCw,
   Settings as SettingsIcon,
   Sliders,
   Sparkles,
@@ -42,7 +43,15 @@ export const App: React.FC = () => {
   } = useExplorerStore()
 
   const { settings, loadSettings, openSettings, setTheme } = useSettingsStore()
-  const { undoStack, isUndoing, triggerUndo, loadHistory } = useUndoStore()
+  const {
+    undoStack,
+    redoStack,
+    isUndoing,
+    isRedoing,
+    triggerUndo,
+    triggerRedo,
+    loadHistory
+  } = useUndoStore()
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0]
   const viewMode = activeTab?.viewMode || 'details'
@@ -339,6 +348,30 @@ export const App: React.FC = () => {
             {undoStack.length > 0 && (
               <span className="bg-zinc-800 text-zinc-400 font-mono text-[10px] px-1 rounded">
                 {undoStack.length}
+              </span>
+            )}
+          </button>
+
+          {/* Redo Button */}
+          <button
+            onClick={() => triggerRedo()}
+            disabled={redoStack.length === 0 || isRedoing}
+            title={
+              redoStack.length > 0
+                ? `다시 실행 (Ctrl+Y / Ctrl+Shift+Z) - [${
+                    redoStack[0].type === 'move' ? '이동 다시실행' : '복사 다시실행'
+                  }: ${redoStack[0].sourcePath.split('\\').pop() || redoStack[0].sourcePath}]`
+                : '다시 실행 (Ctrl+Y / Ctrl+Shift+Z) - 기록 없음'
+            }
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40 disabled:hover:bg-zinc-950 transition"
+          >
+            <RotateCw
+              className={`w-3.5 h-3.5 ${isRedoing ? 'animate-spin text-emerald-400' : 'text-emerald-400'}`}
+            />
+            <span>다시 실행</span>
+            {redoStack.length > 0 && (
+              <span className="bg-zinc-800 text-zinc-400 font-mono text-[10px] px-1 rounded">
+                {redoStack.length}
               </span>
             )}
           </button>

@@ -26,102 +26,129 @@ export const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ filePath, mediaS
     setThumbUrl(null)
     setLoadFailed(false)
 
-    // Hidden lightweight video element to capture first frame
-    const video = document.createElement('video')
-    videoRef.current = video
-    video.src = mediaSrc
-    video.crossOrigin = 'anonymous'
-    video.muted = true
-    video.preload = 'metadata'
-    video.playsInline = true
-
     let isCancelled = false
     let hasSeeked = false
 
-    // Safety timeout (3.5s) to prevent hanging if video codec is unsupported or network stalls
-    const timeoutId = setTimeout(() => {
-      if (!isCancelled && !hasSeeked) {
-        setLoadFailed(true)
-        cleanupVideo()
-      }
-    }, 3500)
-
-    const triggerSeek = () => {
-      if (isCancelled || hasSeeked) return
-      try {
-        const dur = video.duration
-        const seekTime = dur && !isNaN(dur) && dur > 0 ? Math.min(1.0, dur > 2 ? 1.0 : dur * 0.2) : 0.1
-        video.currentTime = seekTime
-      } catch {
-        video.currentTime = 0.1
-      }
+    // 1. Try Native Windows Shell thumbnail first via Electron IPC
+    if (typeof window !== 'undefined' && window.electronAPI?.getFileThumbnail) {
+      window.electronAPI
+        .getFileThumbnail(filePath, { width: 320, height: 240 })
+        .then((nativeThumb) => {
+          if (isCancelled) return
+          if (nativeThumb) {
+            thumbnailCache.set(filePath, nativeThumb)
+            setThumbUrl(nativeThumb)
+            return
+          }
+          // If native thumbnail returned null, fall back to HTML5 video capture
+          startHtml5Capture()
+        })
+        .catch(() => {
+          if (!isCancelled) startHtml5Capture()
+        })
+    } else {
+      startHtml5Capture()
     }
 
-    const handleLoadedMetadata = () => {
-      triggerSeek()
-    }
-
-    const handleLoadedData = () => {
-      triggerSeek()
-    }
-
-    const handleSeeked = () => {
+    function startHtml5Capture() {
       if (isCancelled) return
-      hasSeeked = true
-      clearTimeout(timeoutId)
-      try {
-        const canvas = document.createElement('canvas')
-        const width = video.videoWidth || 320
-        const height = video.videoHeight || 180
+      // Hidden lightweight video element to capture first frame
+      const video = document.createElement('video')
+      videoRef.current = video
+      video.src = mediaSrc
+      video.crossOrigin = 'anonymous'
+      video.muted = true
+      video.preload = 'metadata'
+      video.playsInline = true
 
-        // Scale down thumbnail to save memory (max 320px width)
-        const scale = Math.min(1, 320 / width)
-        canvas.width = Math.max(1, Math.floor(width * scale))
-        canvas.height = Math.max(1, Math.floor(height * scale))
-
-        const ctx = canvas.getContext('2d')
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.75)
-          thumbnailCache.set(filePath, dataUrl)
-          setThumbUrl(dataUrl)
+      // Safety timeout (2.5s) to prevent hanging if video codec is unsupported or network stalls
+      const timeoutId = setTimeout(() => {
+        if (!isCancelled && !hasSeeked) {
+          setLoadFailed(true)
+          cleanupVideo()
         }
-      } catch (err) {
-        console.warn('Failed to extract video thumbnail frame:', err)
+      }, 2500)
+
+      const triggerSeek = () => {
+        if (isCancelled || hasSeeked) return
+        try {
+          const dur = video.duration
+          const seekTime =
+            dur && !isNaN(dur) && dur > 0 ? Math.min(1.0, dur > 2 ? 1.0 : dur * 0.2) : 0.1
+          video.currentTime = seekTime
+        } catch {
+          video.currentTime = 0.1
+        }
+      }
+
+      const handleLoadedMetadata = () => {
+        triggerSeek()
+      }
+
+      const handleLoadedData = () => {
+        triggerSeek()
+      }
+
+      const handleSeeked = () => {
+        if (isCancelled) return
+        hasSeeked = true
+        clearTimeout(timeoutId)
+        try {
+          const canvas = document.createElement('canvas')
+          const width = video.videoWidth || 320
+          const height = video.videoHeight || 180
+
+          // Scale down thumbnail to save memory (max 320px width)
+          const scale = Math.min(1, 320 / width)
+          canvas.width = Math.max(1, Math.floor(width * scale))
+          canvas.height = Math.max(1, Math.floor(height * scale))
+
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.75)
+            thumbnailCache.set(filePath, dataUrl)
+            setThumbUrl(dataUrl)
+          }
+        } catch (err) {
+          console.warn('Failed to extract video thumbnail frame:', err)
+          setLoadFailed(true)
+        } finally {
+          cleanupVideo()
+        }
+      }
+
+      const handleError = () => {
+        if (isCancelled) return
+        clearTimeout(timeoutId)
         setLoadFailed(true)
-      } finally {
         cleanupVideo()
       }
-    }
 
-    const handleError = () => {
-      if (isCancelled) return
-      clearTimeout(timeoutId)
-      setLoadFailed(true)
-      cleanupVideo()
-    }
-
-    const cleanupVideo = () => {
-      clearTimeout(timeoutId)
-      if (video) {
-        video.removeEventListener('loadedmetadata', handleLoadedMetadata)
-        video.removeEventListener('loadeddata', handleLoadedData)
-        video.removeEventListener('seeked', handleSeeked)
-        video.removeEventListener('error', handleError)
-        video.removeAttribute('src')
-        video.load()
+      const cleanupVideo = () => {
+        clearTimeout(timeoutId)
+        if (video) {
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+          video.removeEventListener('loadeddata', handleLoadedData)
+          video.removeEventListener('seeked', handleSeeked)
+          video.removeEventListener('error', handleError)
+          video.removeAttribute('src')
+          video.load()
+        }
       }
-    }
 
-    video.addEventListener('loadedmetadata', handleLoadedMetadata)
-    video.addEventListener('loadeddata', handleLoadedData)
-    video.addEventListener('seeked', handleSeeked)
-    video.addEventListener('error', handleError)
+      video.addEventListener('loadedmetadata', handleLoadedMetadata)
+      video.addEventListener('loadeddata', handleLoadedData)
+      video.addEventListener('seeked', handleSeeked)
+      video.addEventListener('error', handleError)
+    }
 
     return () => {
       isCancelled = true
-      clearTimeout(timeoutId)
-      cleanupVideo()
+      if (videoRef.current) {
+        videoRef.current.removeAttribute('src')
+        videoRef.current.load()
+      }
     }
   }, [filePath, mediaSrc])
 

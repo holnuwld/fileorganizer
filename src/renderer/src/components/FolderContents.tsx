@@ -54,6 +54,9 @@ export const FolderContents: React.FC = () => {
     refreshCurrentTab,
     files,
     selectedFileIndex,
+    selectedFilePaths,
+    clearSelection,
+    clipboard,
     selectFile,
     isLoadingFiles,
     sortColumn,
@@ -144,6 +147,31 @@ export const FolderContents: React.FC = () => {
       }, 50)
     }
   }, [renamingFile])
+
+  // Dynamic grid column count calculation for 2D keyboard navigation
+  useEffect(() => {
+    if (viewMode === 'details') {
+      useExplorerStore.getState().setGridColumns(1)
+      return
+    }
+
+    const measureGrid = () => {
+      if (containerRef.current) {
+        const gridEl = containerRef.current.querySelector('.grid') as HTMLElement | null
+        if (gridEl) {
+          const style = window.getComputedStyle(gridEl)
+          const cols = style.gridTemplateColumns.split(' ').filter(Boolean).length
+          if (cols > 0) {
+            useExplorerStore.getState().setGridColumns(cols)
+          }
+        }
+      }
+    }
+
+    measureGrid()
+    window.addEventListener('resize', measureGrid)
+    return () => window.removeEventListener('resize', measureGrid)
+  }, [viewMode, thumbnailSize, files.length])
 
   const handlePathSubmit = () => {
     const trimmed = pathInputValue.trim()
@@ -425,6 +453,20 @@ export const FolderContents: React.FC = () => {
             </button>
           </div>
 
+          {selectedFilePaths.size > 1 && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-950/80 border border-blue-500/50 text-[11px] text-blue-300 shrink-0">
+              <span className="font-medium">{selectedFilePaths.size}개 선택됨</span>
+              <button
+                type="button"
+                onClick={() => clearSelection()}
+                className="hover:text-white p-0.5 rounded hover:bg-blue-900/50"
+                title="선택 해제"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
           <div className="text-[11px] text-zinc-500 font-mono shrink-0">{files.length} 항목</div>
         </div>
       </div>
@@ -486,29 +528,44 @@ export const FolderContents: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-zinc-800/40">
               {files.map((file, idx) => {
-                const isSelected = idx === selectedFileIndex
+                const isSelected = selectedFilePaths.has(file.path)
+                const isCut =
+                  clipboard?.op === 'cut' && clipboard.files.some((f) => f.path === file.path)
                 return (
                   <tr
                     key={file.path}
                     data-index={idx}
                     draggable
                     onDragStart={(e) => {
+                      const allSelected = files.filter((f) => selectedFilePaths.has(f.path))
+                      const dragPayload = allSelected.length > 0 ? allSelected : [file]
                       e.dataTransfer.setData('text/plain', file.path)
                       e.dataTransfer.setData(
                         'application/json',
                         JSON.stringify({
                           path: file.path,
                           name: file.name,
-                          isDirectory: file.isDirectory
+                          isDirectory: file.isDirectory,
+                          items: dragPayload
                         })
                       )
                       e.dataTransfer.effectAllowed = 'copyMove'
                     }}
-                    onClick={() => selectFile(idx)}
+                    onClick={(e) => {
+                      if (e.ctrlKey || e.metaKey) {
+                        selectFile(idx, { toggle: true })
+                      } else if (e.shiftKey) {
+                        selectFile(idx, { range: true })
+                      } else {
+                        selectFile(idx)
+                      }
+                    }}
                     onDoubleClick={() => handleRowDoubleClick(file)}
                     className={`cursor-pointer transition select-none ${
+                      isCut ? 'opacity-40' : ''
+                    } ${
                       isSelected
-                        ? 'bg-blue-600/25 text-blue-200 font-medium'
+                        ? 'bg-blue-600/30 text-blue-100 font-medium'
                         : 'hover:bg-zinc-800/50 text-zinc-300'
                     }`}
                   >
@@ -560,7 +617,9 @@ export const FolderContents: React.FC = () => {
             }}
           >
             {files.map((file, idx) => {
-              const isSelected = idx === selectedFileIndex
+              const isSelected = selectedFilePaths.has(file.path)
+              const isCut =
+                clipboard?.op === 'cut' && clipboard.files.some((f) => f.path === file.path)
               const mediaSrc =
                 typeof window !== 'undefined' && window.electronAPI?.getMediaUrl
                   ? window.electronAPI.getMediaUrl(file.path)
@@ -572,22 +631,35 @@ export const FolderContents: React.FC = () => {
                   data-index={idx}
                   draggable
                   onDragStart={(e) => {
+                    const allSelected = files.filter((f) => selectedFilePaths.has(f.path))
+                    const dragPayload = allSelected.length > 0 ? allSelected : [file]
                     e.dataTransfer.setData('text/plain', file.path)
                     e.dataTransfer.setData(
                       'application/json',
                       JSON.stringify({
                         path: file.path,
                         name: file.name,
-                        isDirectory: file.isDirectory
+                        isDirectory: file.isDirectory,
+                        items: dragPayload
                       })
                     )
                     e.dataTransfer.effectAllowed = 'copyMove'
                   }}
-                  onClick={() => selectFile(idx)}
+                  onClick={(e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                      selectFile(idx, { toggle: true })
+                    } else if (e.shiftKey) {
+                      selectFile(idx, { range: true })
+                    } else {
+                      selectFile(idx)
+                    }
+                  }}
                   onDoubleClick={() => handleRowDoubleClick(file)}
                   className={`group flex flex-col rounded-lg border overflow-hidden cursor-pointer transition-all duration-100 ${
+                    isCut ? 'opacity-40' : ''
+                  } ${
                     isSelected
-                      ? 'border-blue-500 bg-blue-950/40 shadow-md ring-2 ring-blue-500/40 text-blue-200'
+                      ? 'border-blue-500 bg-blue-950/60 shadow-md ring-2 ring-blue-500/60 text-blue-100'
                       : 'border-zinc-800/80 bg-zinc-900/60 hover:bg-zinc-800/80 hover:border-zinc-700 text-zinc-300'
                   }`}
                 >

@@ -11,7 +11,9 @@ import {
   Film,
   Image as ImageIcon,
   Clock,
-  Sparkles
+  Sparkles,
+  ExternalLink,
+  AlertTriangle
 } from 'lucide-react'
 import { useExplorerStore } from '../store/useExplorerStore'
 import { useSettingsStore } from '../store/useSettingsStore'
@@ -44,6 +46,9 @@ export const MediaPreview: React.FC = () => {
   const [seekBanner, setSeekBanner] = useState<{ text: string; id: number } | null>(null)
   const seekBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Codec/Playback error state
+  const [videoError, setVideoError] = useState<string | null>(null)
+
   // Photo viewer states
   const [zoomLevel, setZoomLevel] = useState<number>(1)
   const [rotation, setRotation] = useState<number>(0)
@@ -59,6 +64,7 @@ export const MediaPreview: React.FC = () => {
     setCurrentTime(0)
     setDuration(0)
     setIsPlaying(false)
+    setVideoError(null)
   }, [selectedFile?.path])
 
   // Custom event listener for keyboard router commands (seek, playPause, muteToggle)
@@ -219,42 +225,55 @@ export const MediaPreview: React.FC = () => {
           </span>
         </div>
 
-        {/* Image Controls toolbar */}
-        {selectedFile.type === 'image' && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setZoomLevel((z) => Math.min(4, z + 0.25))}
-              title="확대 (Zoom In)"
-              className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.25))}
-              title="축소 (Zoom Out)"
-              className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                setZoomLevel(1)
-                setRotation(0)
-              }}
-              title="원래 크기 맞춤"
-              className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setRotation((r) => (r + 90) % 360)}
-              title="90도 회전"
-              className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* External Player / App Button */}
+          <button
+            type="button"
+            onClick={() => window.electronAPI?.openPath(selectedFile.path)}
+            title="Windows 기본 프로그램으로 열기 (팟플레이어, VLC 등)"
+            className="focus-guard flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-[11px] transition border border-zinc-700/60"
+          >
+            <ExternalLink className="w-3 h-3 text-blue-400" />
+            <span>외부 열기</span>
+          </button>
+
+          {/* Image Controls toolbar */}
+          {selectedFile.type === 'image' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setZoomLevel((z) => Math.min(4, z + 0.25))}
+                title="확대 (Zoom In)"
+                className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.25))}
+                title="축소 (Zoom Out)"
+                className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => {
+                  setZoomLevel(1)
+                  setRotation(0)
+                }}
+                title="원래 크기 맞춤"
+                className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setRotation((r) => (r + 90) % 360)}
+                title="90도 회전"
+                className="focus-guard p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Preview Center Canvas */}
@@ -277,16 +296,41 @@ export const MediaPreview: React.FC = () => {
           </div>
         ) : selectedFile.type === 'video' ? (
           <div className="relative w-full h-full flex items-center justify-center bg-black">
-            <video
-              ref={videoRef}
-              src={mediaUrl}
-              onClick={togglePlay}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              className="w-full h-full object-contain cursor-pointer"
-            />
+            {videoError ? (
+              <div className="flex flex-col items-center justify-center p-6 text-center gap-3 max-w-sm">
+                <AlertTriangle className="w-10 h-10 text-amber-400 animate-bounce" />
+                <p className="text-xs text-zinc-300 font-medium">
+                  {videoError}
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  HEVC/H.265 또는 특수 코덱 영상은 PC에 설치된 외부 전용 플레이어(팟플레이어, VLC 등)에서 최적 화질로 재생할 수 있습니다.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => window.electronAPI?.openPath(selectedFile.path)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-lg transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>기본 동영상 플레이어로 열기</span>
+                </button>
+              </div>
+            ) : (
+              <video
+                ref={videoRef}
+                src={mediaUrl}
+                onClick={togglePlay}
+                onError={() =>
+                  setVideoError(
+                    '이 동영상 코덱(HEVC/MKV 등)은 브라우저 내장 플레이어에서 직접 재생을 지원하지 않습니다.'
+                  )
+                }
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                className="w-full h-full object-contain cursor-pointer"
+              />
+            )}
 
             {/* Visual Seek Indicator Banner (e.g. +5s, -15s, +60s) */}
             {seekBanner && (

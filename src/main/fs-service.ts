@@ -638,8 +638,113 @@ export class FsService {
     if (!result.success) {
       // Push back if failed
       storeService.pushUndoAction(latestAction)
+    } else {
+      storeService.pushRedoAction(latestAction)
     }
     return result
+  }
+
+  /**
+   * Redo the latest undone action from the redo stack
+   */
+  public async redoLatestAction(): Promise<FileOperationResult & { redoneAction?: UndoAction }> {
+    const actionToRedo = storeService.popRedoAction()
+    if (!actionToRedo) {
+      return {
+        success: false,
+        action: 'move',
+        sourcePath: '',
+        destinationPath: '',
+        error: 'No actions to redo'
+      }
+    }
+
+    try {
+      if (actionToRedo.type === 'move') {
+        if (!fs.existsSync(actionToRedo.sourcePath)) {
+          return {
+            success: false,
+            action: 'move',
+            sourcePath: actionToRedo.sourcePath,
+            destinationPath: actionToRedo.destinationPath,
+            error: 'Source file no longer exists to redo move'
+          }
+        }
+
+        const destDir = path.dirname(actionToRedo.destinationPath)
+        if (!fs.existsSync(destDir)) {
+          await fs.promises.mkdir(destDir, { recursive: true })
+        }
+
+        await safeMoveFileInternal(actionToRedo.sourcePath, actionToRedo.destinationPath)
+        const updatedUndo: UndoAction = {
+          ...actionToRedo,
+          id: `move-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: Date.now()
+        }
+        storeService.pushUndoAction(updatedUndo)
+
+        return {
+          success: true,
+          action: 'move',
+          sourcePath: actionToRedo.sourcePath,
+          destinationPath: actionToRedo.destinationPath,
+          redoneAction: updatedUndo
+        }
+      }
+
+      if (actionToRedo.type === 'copy') {
+        if (!fs.existsSync(actionToRedo.sourcePath)) {
+          return {
+            success: false,
+            action: 'copy',
+            sourcePath: actionToRedo.sourcePath,
+            destinationPath: actionToRedo.destinationPath,
+            error: 'Source file no longer exists to redo copy'
+          }
+        }
+
+        const destDir = path.dirname(actionToRedo.destinationPath)
+        if (!fs.existsSync(destDir)) {
+          await fs.promises.mkdir(destDir, { recursive: true })
+        }
+
+        await fs.promises.copyFile(actionToRedo.sourcePath, actionToRedo.destinationPath)
+        const updatedUndo: UndoAction = {
+          ...actionToRedo,
+          id: `copy-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: Date.now()
+        }
+        storeService.pushUndoAction(updatedUndo)
+
+        return {
+          success: true,
+          action: 'copy',
+          sourcePath: actionToRedo.sourcePath,
+          destinationPath: actionToRedo.destinationPath,
+          redoneAction: updatedUndo
+        }
+      }
+
+      return {
+        success: false,
+        action: 'move',
+        sourcePath: '',
+        destinationPath: '',
+        error: 'Unknown redo action type'
+      }
+    } catch (err: unknown) {
+      const error = err as Error
+      console.error('[fs-service] Redo operation failed:', err)
+      storeService.pushRedoAction(actionToRedo)
+      return {
+        success: false,
+        action: actionToRedo.type,
+        sourcePath: actionToRedo.sourcePath,
+        destinationPath: actionToRedo.destinationPath,
+        error: error.message || 'Redo operation failed'
+      }
+    }
   }
 }
 

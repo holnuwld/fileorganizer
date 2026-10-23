@@ -57,10 +57,12 @@ export function matchesBinding(e: KeyboardEvent, binding?: string): boolean {
 export function useKeyboardRouter() {
   const {
     selectedFile,
-    nextFile,
-    prevFile,
+    navigateGrid,
     moveSelectedFileToSlot,
     copySelectedFileToSlot,
+    selectAll,
+    copyToClipboard,
+    pasteFromClipboard,
     pendingConflict,
     startRename,
     refreshCurrentTab,
@@ -73,7 +75,7 @@ export function useKeyboardRouter() {
     createNewFolderInCurrentTab
   } = useExplorerStore()
 
-  const { triggerUndo } = useUndoStore()
+  const { triggerUndo, triggerRedo } = useUndoStore()
   const { settings, isSettingsOpen } = useSettingsStore()
 
   useEffect(() => {
@@ -187,6 +189,44 @@ export function useKeyboardRouter() {
         return
       }
 
+      // 5-1. Redo Hotkey (Default: Ctrl+Y or Ctrl+Shift+Z)
+      if (
+        matchesBinding(e, hotkeys.redo || 'Ctrl+Y') ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z'))
+      ) {
+        e.preventDefault()
+        triggerRedo()
+        return
+      }
+
+      // 5-2. Ctrl+A: Select All Files in Folder
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        selectAll()
+        return
+      }
+
+      // 5-3. Ctrl+C: Copy Selected Files to Clipboard
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        copyToClipboard(false)
+        return
+      }
+
+      // 5-4. Ctrl+X: Cut Selected Files to Clipboard
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'x' || e.key === 'X') && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        copyToClipboard(true)
+        return
+      }
+
+      // 5-5. Ctrl+V: Paste Files from Clipboard
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V') && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        pasteFromClipboard()
+        return
+      }
+
       // 6. Video Play/Pause (Default: Space)
       if (matchesBinding(e, hotkeys.playPause || 'Space')) {
         e.preventDefault()
@@ -258,16 +298,26 @@ export function useKeyboardRouter() {
         }
       }
 
-      // 10. Plain Arrow Keys for Folder Contents Navigation (Section 3)
+      // 10. Plain Arrow Keys for Folder Contents Navigation (2D Grid & Details)
       if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        if (e.key === 'ArrowDown') {
           e.preventDefault()
-          nextFile()
+          navigateGrid('down')
           return
         }
-        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        if (e.key === 'ArrowUp') {
           e.preventDefault()
-          prevFile()
+          navigateGrid('up')
+          return
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault()
+          navigateGrid('right')
+          return
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault()
+          navigateGrid('left')
           return
         }
       }
@@ -282,11 +332,14 @@ export function useKeyboardRouter() {
     }
   }, [
     selectedFile,
-    nextFile,
-    prevFile,
+    navigateGrid,
     moveSelectedFileToSlot,
     copySelectedFileToSlot,
+    selectAll,
+    copyToClipboard,
+    pasteFromClipboard,
     triggerUndo,
+    triggerRedo,
     startRename,
     refreshCurrentTab,
     settings,

@@ -22,11 +22,18 @@ interface ExplorerState {
   files: FileEntry[]
   selectedFileIndex: number
   selectedFile: FileEntry | null
+  selectedFilePaths: Set<string>
+  gridColumns: number
   isLoadingFiles: boolean
   sortColumn: SortColumn
   sortDirection: SortDirection
 
-  // Target slots 1-9
+  // Clipboard
+  clipboard: { files: FileEntry[]; op: 'copy' | 'cut' } | null
+  copyToClipboard: (isCut?: boolean) => void
+  pasteFromClipboard: () => Promise<void>
+
+  // Target slots 1-18
   slots: Record<number, TargetFolderSlot | null>
   highlightedSlot: { slotId: number; type: 'move' | 'copy'; timestamp: number } | null
   highlightTimer: ReturnType<typeof setTimeout> | null
@@ -53,10 +60,14 @@ interface ExplorerState {
   setSort: (column: SortColumn, direction?: SortDirection) => void
   toggleSortDirection: () => void
 
-  // Methods - Files
+  // Methods - Files & Multi-selection
   loadDirectory: (dirPath: string) => Promise<void>
-  selectFile: (index: number) => void
+  selectFile: (index: number, options?: { toggle?: boolean; range?: boolean }) => void
   selectFileByName: (name: string) => void
+  selectAll: () => void
+  clearSelection: () => void
+  setGridColumns: (cols: number) => void
+  navigateGrid: (direction: 'up' | 'down' | 'left' | 'right') => void
   nextFile: () => void
   prevFile: () => void
 
@@ -132,9 +143,14 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
   files: [],
   selectedFileIndex: -1,
   selectedFile: null,
+  selectedFilePaths: new Set<string>(),
+  gridColumns: 1,
   isLoadingFiles: false,
   sortColumn: 'name',
   sortDirection: 'asc',
+
+  // Clipboard
+  clipboard: null,
 
   slots: initialSlots,
   highlightedSlot: null,
@@ -404,57 +420,138 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
       })
 
       const newIndex = sorted.length > 0 ? 0 : -1
+      const firstItem = newIndex >= 0 ? sorted[newIndex] : null
       set({
         files: sorted,
         selectedFileIndex: newIndex,
-        selectedFile: newIndex >= 0 ? sorted[newIndex] : null,
+        selectedFile: firstItem,
+        selectedFilePaths: firstItem ? new Set([firstItem.path]) : new Set(),
         isLoadingFiles: false
       })
     } catch (err) {
       console.error('Failed to load directory:', err)
-      set({ files: [], selectedFileIndex: -1, selectedFile: null, isLoadingFiles: false })
+      set({
+        files: [],
+        selectedFileIndex: -1,
+        selectedFile: null,
+        selectedFilePaths: new Set(),
+        isLoadingFiles: false
+      })
     }
   },
 
-  selectFile: (index: number) => {
-    const { files } = get()
-    if (index >= 0 && index < files.length) {
-      set({
-        selectedFileIndex: index,
-        selectedFile: files[index]
-      })
+  selectFile: (index: number, options?: { toggle?: boolean; range?: boolean }) => {
+    const { files, selectedFileIndex, selectedFilePaths } = get()
+    if (index < 0 || index >= files.length) return
+    const targetFile = files[index]
+
+    const newSet = new Set(selectedFilePaths)
+
+    if (options?.toggle) {
+      if (newSet.has(targetFile.path)) {
+        newSet.delete(targetFile.path)
+      } else {
+        newSet.add(targetFile.path)
+      }
+    } else if (options?.range && selectedFileIndex >= 0) {
+      const start = Math.min(selectedFileIndex, index)
+      const end = Math.max(selectedFileIndex, index)
+      for (let i = start; i <= end; i++) {
+        newSet.add(files[i].path)
+      }
+    } else {
+      newSet.clear()
+      newSet.add(targetFile.path)
     }
+
+    set({
+      selectedFileIndex: index,
+      selectedFile: targetFile,
+      selectedFilePaths: newSet
+    })
   },
 
   selectFileByName: (name: string) => {
     const { files } = get()
     const index = files.findIndex((f) => f.name === name)
     if (index !== -1) {
-      set({
-        selectedFileIndex: index,
-        selectedFile: files[index]
-      })
+      get().selectFile(index)
     }
   },
 
-  nextFile: () => {
-    const { files, selectedFileIndex } = get()
+  selectAll: () => {
+    const { files } = get()
+    const allPaths = new Set(files.map((f) => f.path))
+    set({ selectedFilePaths: allPaths })
+  },
+
+  clearSelection: () => {
+    set({ selectedFilePaths: new Set() })
+  },
+
+  setGridColumns: (cols: number) => {
+    set({ gridColumns: Math.max(1, cols) })
+  },
+
+  navigateGrid: (dir: 'up' | 'down' | 'left' | 'right') => {
+    const { files, selectedFileIndex, gridColumns, selectFile } = get()
     if (files.length === 0) return
-    const nextIndex = Math.min(selectedFileIndex + 1, files.length - 1)
-    set({
-      selectedFileIndex: nextIndex,
-      selectedFile: files[nextIndex]
-    })
+    const cur = selectedFileIndex >= 0 ? selectedFileIndex : 0
+    let nextIdx = cur
+
+    if (dir === 'left') nextIdx = Math.max(0, cur - 1)
+    else if (dir === 'right') nextIdx = Math.min(files.length - 1, cur + 1)
+    else if (dir === 'up') nextIdx = Math.max(0, cur - gridColumns)
+    else if (dir === 'down') nextIdx = Math.min(files.length - 1, cur + gridColumns)
+
+    selectFile(nextIdx)
+  },
+
+  nextFile: () => {
+    get().navigateGrid('right')
   },
 
   prevFile: () => {
-    const { files, selectedFileIndex } = get()
-    if (files.length === 0) return
-    const prevIndex = Math.max(selectedFileIndex - 1, 0)
+    get().navigateGrid('left')
+  },
+
+  copyToClipboard: (isCut = false) => {
+    const { files, selectedFilePaths, selectedFile } = get()
+    let targetFiles = files.filter((f) => selectedFilePaths.has(f.path))
+    if (targetFiles.length === 0 && selectedFile) {
+      targetFiles = [selectedFile]
+    }
+    if (targetFiles.length === 0) return
+
     set({
-      selectedFileIndex: prevIndex,
-      selectedFile: files[prevIndex]
+      clipboard: {
+        files: targetFiles,
+        op: isCut ? 'cut' : 'copy'
+      }
     })
+  },
+
+  pasteFromClipboard: async () => {
+    const { clipboard, tabs, activeTabId, refreshCurrentTab } = get()
+    if (!clipboard || clipboard.files.length === 0) return
+    const activeTab = tabs.find((t) => t.id === activeTabId)
+    if (!activeTab || !activeTab.path) return
+
+    const destDir = activeTab.path
+    const isCut = clipboard.op === 'cut'
+
+    for (const file of clipboard.files) {
+      if (isCut) {
+        await window.electronAPI?.moveFile(file.path, destDir, 'rename')
+      } else {
+        await window.electronAPI?.copyFile(file.path, destDir, 'rename')
+      }
+    }
+
+    if (isCut) {
+      set({ clipboard: null })
+    }
+    await refreshCurrentTab()
   },
 
   // --- Target Slots ---
@@ -515,117 +612,120 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     })
   },
 
-  // --- File Moving / Copying ---
+  // --- File Moving / Copying (Supports Batch Multiple Selection) ---
   moveSelectedFileToSlot: async (slotId: number) => {
-    const { slots, selectedFile, selectedFileIndex, files } = get()
+    const { slots, selectedFile, selectedFileIndex, files, selectedFilePaths } = get()
     const targetSlot = slots[slotId]
-    if (!targetSlot || !selectedFile) {
-      console.log(`Slot ${slotId} is empty or no file selected`)
+    if (!targetSlot) return
+
+    let targetFiles = files.filter((f) => selectedFilePaths.has(f.path))
+    if (targetFiles.length === 0 && selectedFile) {
+      targetFiles = [selectedFile]
+    }
+    if (targetFiles.length === 0) {
+      console.log(`Slot ${slotId}: no files selected`)
       return
     }
 
     const policy = useSettingsStore.getState().settings.conflictPolicy
+    get().setHighlightedSlot(slotId, 'move')
+    const movedPaths = new Set<string>()
 
-    try {
-      if (typeof window !== 'undefined' && window.electronAPI?.moveFile) {
-        const res = await window.electronAPI.moveFile(selectedFile.path, targetSlot.path, policy)
+    for (const file of targetFiles) {
+      try {
+        if (typeof window !== 'undefined' && window.electronAPI?.moveFile) {
+          const res = await window.electronAPI.moveFile(file.path, targetSlot.path, policy)
 
-        if (res.conflict && policy === 'ask') {
-          // Open conflict modal
-          set({
-            pendingConflict: {
-              file: selectedFile,
-              slot: targetSlot,
-              isCopy: false,
-              destinationPath: res.destinationPath || targetSlot.path
-            }
-          })
-          return
+          if (res.conflict && policy === 'ask') {
+            set({
+              pendingConflict: {
+                file,
+                slot: targetSlot,
+                isCopy: false,
+                destinationPath: res.destinationPath || targetSlot.path
+              }
+            })
+            break
+          }
+
+          if (res.success) {
+            movedPaths.add(file.path)
+            useUndoStore.getState().pushUndoAction({
+              id: `undo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              type: 'move',
+              sourcePath: file.path,
+              destinationPath: res.destinationPath,
+              timestamp: Date.now(),
+              slotNumber: slotId
+            })
+          }
+        } else {
+          movedPaths.add(file.path)
         }
-
-        if (res.success) {
-          // Highlight visual slot
-          get().setHighlightedSlot(slotId, 'move')
-
-          // Push to undo stack
-          useUndoStore.getState().pushUndoAction({
-            id: `undo-${Date.now()}`,
-            type: 'move',
-            sourcePath: selectedFile.path,
-            destinationPath: res.destinationPath,
-            timestamp: Date.now(),
-            slotNumber: slotId
-          })
-
-          // Immediately remove file from local files array and auto-select next file
-          const remainingFiles = files.filter((_, idx) => idx !== selectedFileIndex)
-          const nextIndex = Math.min(selectedFileIndex, remainingFiles.length - 1)
-
-          set({
-            files: remainingFiles,
-            selectedFileIndex: nextIndex,
-            selectedFile: nextIndex >= 0 ? remainingFiles[nextIndex] : null
-          })
-        }
-      } else {
-        // Fallback simulation
-        get().setHighlightedSlot(slotId, 'move')
-        const remainingFiles = files.filter((_, idx) => idx !== selectedFileIndex)
-        const nextIndex = Math.min(selectedFileIndex, remainingFiles.length - 1)
-        set({
-          files: remainingFiles,
-          selectedFileIndex: nextIndex,
-          selectedFile: nextIndex >= 0 ? remainingFiles[nextIndex] : null
-        })
+      } catch (err) {
+        console.error('Failed to move file:', err)
       }
-    } catch (err) {
-      console.error('Failed to move file:', err)
+    }
+
+    if (movedPaths.size > 0) {
+      const remainingFiles = files.filter((f) => !movedPaths.has(f.path))
+      const nextIndex = Math.min(selectedFileIndex, remainingFiles.length - 1)
+      const nextFile = nextIndex >= 0 ? remainingFiles[nextIndex] : null
+
+      set({
+        files: remainingFiles,
+        selectedFileIndex: nextIndex,
+        selectedFile: nextFile,
+        selectedFilePaths: nextFile ? new Set([nextFile.path]) : new Set()
+      })
     }
   },
 
   copySelectedFileToSlot: async (slotId: number) => {
-    const { slots, selectedFile } = get()
+    const { slots, selectedFile, files, selectedFilePaths } = get()
     const targetSlot = slots[slotId]
-    if (!targetSlot || !selectedFile) {
-      console.log(`Slot ${slotId} is empty or no file selected`)
-      return
+    if (!targetSlot) return
+
+    let targetFiles = files.filter((f) => selectedFilePaths.has(f.path))
+    if (targetFiles.length === 0 && selectedFile) {
+      targetFiles = [selectedFile]
     }
+    if (targetFiles.length === 0) return
 
     const policy = useSettingsStore.getState().settings.conflictPolicy
+    get().setHighlightedSlot(slotId, 'copy')
 
-    try {
-      if (typeof window !== 'undefined' && window.electronAPI?.copyFile) {
-        const res = await window.electronAPI.copyFile(selectedFile.path, targetSlot.path, policy)
+    for (const file of targetFiles) {
+      try {
+        if (typeof window !== 'undefined' && window.electronAPI?.copyFile) {
+          const res = await window.electronAPI.copyFile(file.path, targetSlot.path, policy)
 
-        if (res.conflict && policy === 'ask') {
-          set({
-            pendingConflict: {
-              file: selectedFile,
-              slot: targetSlot,
-              isCopy: true,
-              destinationPath: res.destinationPath || targetSlot.path
-            }
-          })
-          return
+          if (res.conflict && policy === 'ask') {
+            set({
+              pendingConflict: {
+                file,
+                slot: targetSlot,
+                isCopy: true,
+                destinationPath: res.destinationPath || targetSlot.path
+              }
+            })
+            break
+          }
+
+          if (res.success) {
+            useUndoStore.getState().pushUndoAction({
+              id: `undo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              type: 'copy',
+              sourcePath: file.path,
+              destinationPath: res.destinationPath,
+              timestamp: Date.now(),
+              slotNumber: slotId
+            })
+          }
         }
-
-        if (res.success) {
-          get().setHighlightedSlot(slotId, 'copy')
-          useUndoStore.getState().pushUndoAction({
-            id: `undo-${Date.now()}`,
-            type: 'copy',
-            sourcePath: selectedFile.path,
-            destinationPath: res.destinationPath,
-            timestamp: Date.now(),
-            slotNumber: slotId
-          })
-        }
-      } else {
-        // Fallback simulation
-        get().setHighlightedSlot(slotId, 'copy')
+      } catch (err) {
+        console.error('Failed to copy file:', err)
       }
-    } catch (err) {
-      console.error('Failed to copy file:', err)
     }
   },
 
