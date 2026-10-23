@@ -18,6 +18,8 @@ import {
 import { useExplorerStore, SortColumn } from '../store/useExplorerStore'
 import { FileEntry } from '../types'
 
+import { VideoThumbnail } from './VideoThumbnail'
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -471,14 +473,11 @@ export const FolderContents: React.FC = () => {
                         }}
                       />
                     ) : file.type === 'video' ? (
-                      <div className="relative w-full h-full flex items-center justify-center bg-zinc-900">
-                        <VideoIcon className="w-8 h-8 text-purple-400/80" />
-                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                          <div className="w-7 h-7 rounded-full bg-black/60 border border-white/20 flex items-center justify-center">
-                            <div className="w-0 h-0 border-y-4 border-y-transparent border-l-6 border-l-white ml-0.5" />
-                          </div>
-                        </div>
-                      </div>
+                      <VideoThumbnail
+                        filePath={file.path}
+                        mediaSrc={mediaSrc}
+                        alt={file.name}
+                      />
                     ) : (
                       <FileIcon className="w-8 h-8 text-zinc-500" />
                     )}
